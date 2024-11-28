@@ -2,16 +2,17 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, TensorDataset
 from datasets import load_dataset
 from torchsummary import summary
+import matplotlib.pyplot as plt
 import os as os
 import time
 import math
 import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+# device = torch.device("cpu")
 
 ds = load_dataset("dair-ai/emotion", "split")
 # print("Train set:")
@@ -51,10 +52,14 @@ testTargets = ds['test']['label']
 valTokens = [tweet.split() for tweet in ds['validation']['text']]
 valTargets = ds['validation']['label']
 
-N = math.floor(mean + std)
-trainTokens = [(tweet + ['$'] * (N - len(tweet)))[:N] for tweet in trainTokens]
-testTokens = [(tweet + ['$'] * (N - len(tweet)))[:N] for tweet in testTokens]
-valTokens = [(tweet + ['$'] * (N - len(tweet)))[:N] for tweet in valTokens]
+seqLength = int(math.floor(mean + std))
+vocabSize = len(vocab)
+print(seqLength)
+print(vocabSize)
+
+trainTokens = [(tweet + ['$'] * (seqLength - len(tweet)))[:seqLength] for tweet in trainTokens]
+testTokens = [(tweet + ['$'] * (seqLength - len(tweet)))[:seqLength] for tweet in testTokens]
+valTokens = [(tweet + ['$'] * (seqLength - len(tweet)))[:seqLength] for tweet in valTokens]
 
 trainEncoded = [[vocab.get(word, 0) for word in tweet] for tweet in trainTokens]
 testEncoded = [[vocab.get(word, 0) for word in tweet] for tweet in testTokens]
@@ -75,13 +80,21 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 class RNNModel(nn.Module):
     def __init__(self):
         super(RNNModel, self).__init__()
-        self.rnn = nn.RNN(input_size = 28, hidden_size = 100, num_layers = 3, batch_first = True, nonlinearity = 'relu')
-        self.fc = nn.Linear(in_features= 100, out_features= 10)
+        self.embedding = nn.Embedding(vocabSize, seqLength)
+        self.rnn = nn.RNN(input_size = seqLength, hidden_size = 100, num_layers = 3, batch_first = True, nonlinearity = 'relu')
+        self.fc = nn.Linear(in_features= 100, out_features= 6)
 
     def forward(self, x):
         x = x.to(device)
-        x = x.view(-1, N, N) # Reshape input tensor to match (batch_size, sequence_length, input_size)
-        h0 = torch.zeros(3, x.size(0),100) # Initializes the initial hidden state with (layer_dim, batch_size, hidden_dim)
+        # print(x)
+        x = self.embedding(x)
+        # print(x)
+        # print(x.size())
+        # print(x.size(-1))
+        # print(x.size(0))
+        # print(x.size(1))
+        x = x.view(-1, seqLength, seqLength) # Reshape input tensor to match (batch_size, sequence_length, input_size)
+        h0 = torch.zeros(3, x.size(0),100).to(device) # Initializes the initial hidden state with (layer_dim, batch_size, hidden_dim)
         out, hn = self.rnn(x, h0) # Applies the RNN layers to the input tensor x with the initial hidden state h0.
         hidden_state_outputs = out[:, -1, :] # Returns the hidden state outputs at the last time step of each sequence in the batch.
         result=self.fc(hidden_state_outputs) # This operation transforms the hidden state outputs into the final predictions.
@@ -91,16 +104,16 @@ class RNNModel(nn.Module):
 model = RNNModel()
 model = model.to(device)
 print(model)
-# summary(model, input_size=(3, 300, 300))
+# summary(model, input_size=())
 # save_first_feature_map(model)
 
 
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0003)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Plot activations for first layer of the model
-# save_first_feature_map(model)
+# # Plot activations for first layer of the model
+# # save_first_feature_map(model)
 
 # Train network
 num_epochs = 200
@@ -125,8 +138,8 @@ ax1.set_xlabel('Epochs')
 ax1.set_ylabel('Loss')
 ax2.set_ylabel('Accuracy')
 ax1.set_xlim(0, num_epochs)
-ax1.set_ylim(0, 3)
-ax2.set_ylim(40, 100)
+ax1.set_ylim(0, 5)
+ax2.set_ylim(20, 100)
 
 plt.title('Loss and accuracy')
 plt.show()
@@ -153,9 +166,9 @@ for epoch in range(num_epochs):
             data = data.to(device)
             targets = targets.to(device)
             outputs = model(data)
-            predicted = torch.round(torch.softmax(outputs))
-            # print(f'Predicted: {predicted}')
-            # print(f'Target: {targets}')
+            _, predicted = torch.max(torch.softmax(outputs.detach(), dim=1), dim=1)
+            print(f'Predicted: {predicted}')
+            print(f'Target: {targets}')
             # print(f'Outputs: {outputs}')
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
