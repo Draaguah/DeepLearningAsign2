@@ -6,6 +6,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from datasets import load_dataset
 from torchsummary import summary
 import matplotlib.pyplot as plt
+import nltk
+from nltk.corpus import stopwords
 import os as os
 import time
 import math
@@ -14,6 +16,7 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 # device = torch.device("cpu")
 
+nltk.download('stopwords')
 ds = load_dataset("dair-ai/emotion", "split")
 # print("Train set:")
 # for i in range(6):
@@ -33,24 +36,32 @@ ds = load_dataset("dair-ai/emotion", "split")
 #     length = len(ds['validation']['label'])
 #     print(f'Class: {i}: {ds['validation']['label'].count(i)}, percentage of set: {count/length * 100}')
 
+excludedWords = stopwords.words('english')
+trainTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['train']['text']]
+trainTargets = ds['train']['label']
+testTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['test']['text']]
+testTargets = ds['test']['label']
+valTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['validation']['text']]
+valTargets = ds['validation']['label']
 
-result = [tweet.split() for tweet in ds['train']['text']]
-lengths = [len(tweet) for tweet in result]
+lengths = [len(tweet) for tweet in trainTokens]
 
 mean = np.mean(lengths)
 std = np.std(lengths)
 
-words = set(sum(result, []))
+print(f'Mean: {mean}')
+print(f'Std: {std}')
+
+words = set(sum(trainTokens, []))
 vocab = {word: i+1 for i, word in enumerate(words)}
 vocab['$'] = 0
 
 
-trainTokens = [tweet.split() for tweet in ds['train']['text']]
-trainTargets = ds['train']['label']
-testTokens = [tweet.split() for tweet in ds['test']['text']]
-testTargets = ds['test']['label']
-valTokens = [tweet.split() for tweet in ds['validation']['text']]
-valTargets = ds['validation']['label']
+
+emotions = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
+
+for i, tweet in enumerate(trainTokens):
+    print(f'{emotions[trainTargets[i]]}: {tweet}')
 
 seqLength = int(math.floor(mean + std))
 vocabSize = len(vocab)
@@ -81,7 +92,7 @@ class RNNModel(nn.Module):
     def __init__(self):
         super(RNNModel, self).__init__()
         self.embedding = nn.Embedding(vocabSize, seqLength)
-        self.rnn = nn.RNN(input_size = seqLength, hidden_size = 100, num_layers = 3, batch_first = True, nonlinearity = 'relu')
+        self.rnn = nn.GRU(input_size = seqLength, hidden_size = 100, num_layers = 3, batch_first = True)
         self.fc = nn.Linear(in_features= 100, out_features= 6)
 
     def forward(self, x):
@@ -104,19 +115,15 @@ class RNNModel(nn.Module):
 model = RNNModel()
 model = model.to(device)
 print(model)
-# summary(model, input_size=())
-# save_first_feature_map(model)
 
 
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# # Plot activations for first layer of the model
-# # save_first_feature_map(model)
 
 # Train network
-num_epochs = 200
+num_epochs = 100
 
 train_losses = []
 val_losses = []
@@ -168,7 +175,7 @@ for epoch in range(num_epochs):
             outputs = model(data)
             _, predicted = torch.max(torch.softmax(outputs.detach(), dim=1), dim=1)
             print(f'Predicted: {predicted}')
-            print(f'Target: {targets}')
+            print(f'Target:    {targets}')
             # print(f'Outputs: {outputs}')
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
@@ -197,4 +204,4 @@ for epoch in range(num_epochs):
 
 plt.show(block=True)
 
-torch.save(modelPB.state_dict(), f"Project1/Outputs/model_{accPB}%_{time.strftime('%Y%m%d-%H%M%S')}")
+torch.save(modelPB.state_dict(), f"DeepLearningAsign2/Outputs/model_{accPB}%_{time.strftime('%Y%m%d-%H%M%S')}")
