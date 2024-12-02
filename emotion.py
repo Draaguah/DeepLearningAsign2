@@ -2,88 +2,20 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-from datasets import load_dataset
-from torchsummary import summary
+from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-import nltk
-from nltk.corpus import stopwords
 import os as os
 import time
-import math
-import numpy as np
+from dataPrep import fetch_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
-# device = torch.device("cpu")
-
-nltk.download('stopwords')
-ds = load_dataset("dair-ai/emotion", "split")
-# print("Train set:")
-# for i in range(6):
-#     count = ds['train']['label'].count(i)
-#     length = len(ds['train']['label'])
-#     print(f'Class: {i}: {count}, percentage of set: {count/length * 100}')
-
-# print("Test set:")    
-# for i in range(6):
-#     count = ds['test']['label'].count(i)
-#     length = len(ds['test']['label'])
-#     print(f'Class: {i}: {ds['test']['label'].count(i)}, percentage of set: {count/length * 100}')
-
-# print("Validation set:")
-# for i in range(6):
-#     count = ds['validation']['label'].count(i)
-#     length = len(ds['validation']['label'])
-#     print(f'Class: {i}: {ds['validation']['label'].count(i)}, percentage of set: {count/length * 100}')
-
-excludedWords = stopwords.words('english')
-trainTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['train']['text']]
-trainTargets = ds['train']['label']
-testTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['test']['text']]
-testTargets = ds['test']['label']
-valTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['validation']['text']]
-valTargets = ds['validation']['label']
-
-lengths = [len(tweet) for tweet in trainTokens]
-
-mean = np.mean(lengths)
-std = np.std(lengths)
-
-print(f'Mean: {mean}')
-print(f'Std: {std}')
-
-words = set(sum(trainTokens, []))
-vocab = {word: i+1 for i, word in enumerate(words)}
-vocab['$'] = 0
-
-
-
-emotions = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
-
-for i, tweet in enumerate(trainTokens):
-    print(f'{emotions[trainTargets[i]]}: {tweet}')
-
-seqLength = int(math.floor(mean + std))
-vocabSize = len(vocab)
-print(seqLength)
-print(vocabSize)
-
-trainTokens = [(tweet + ['$'] * (seqLength - len(tweet)))[:seqLength] for tweet in trainTokens]
-testTokens = [(tweet + ['$'] * (seqLength - len(tweet)))[:seqLength] for tweet in testTokens]
-valTokens = [(tweet + ['$'] * (seqLength - len(tweet)))[:seqLength] for tweet in valTokens]
-
-trainEncoded = [[vocab.get(word, 0) for word in tweet] for tweet in trainTokens]
-testEncoded = [[vocab.get(word, 0) for word in tweet] for tweet in testTokens]
-valEncoded = [[vocab.get(word, 0) for word in tweet] for tweet in valTokens]
 
 batch_size = 64
 
+train_dataset, test_dataset, val_dataset, seqLength, vocabSize = fetch_data()
 
-train_dataset = TensorDataset(torch.tensor(trainEncoded), torch.tensor(trainTargets))
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_dataset = TensorDataset(torch.tensor(testEncoded), torch.tensor(testTargets))
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
-val_dataset = TensorDataset(torch.tensor(valEncoded), torch.tensor(valTargets))
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
 
@@ -97,16 +29,10 @@ class RNNModel(nn.Module):
 
     def forward(self, x):
         x = x.to(device)
-        # print(x)
         x = self.embedding(x)
-        # print(x)
-        # print(x.size())
-        # print(x.size(-1))
-        # print(x.size(0))
-        # print(x.size(1))
         x = x.view(-1, seqLength, seqLength) # Reshape input tensor to match (batch_size, sequence_length, input_size)
         h0 = torch.zeros(3, x.size(0),100).to(device) # Initializes the initial hidden state with (layer_dim, batch_size, hidden_dim)
-        out, hn = self.rnn(x, h0) # Applies the RNN layers to the input tensor x with the initial hidden state h0.
+        out, _ = self.rnn(x, h0) # Applies the RNN layers to the input tensor x with the initial hidden state h0.
         hidden_state_outputs = out[:, -1, :] # Returns the hidden state outputs at the last time step of each sequence in the batch.
         result=self.fc(hidden_state_outputs) # This operation transforms the hidden state outputs into the final predictions.
         return result
@@ -176,7 +102,7 @@ for epoch in range(num_epochs):
             _, predicted = torch.max(torch.softmax(outputs.detach(), dim=1), dim=1)
             print(f'Predicted: {predicted}')
             print(f'Target:    {targets}')
-            # print(f'Outputs: {outputs}')
+            print(f'Outputs: {outputs}')
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
             valLoss += criterion(outputs, targets).item()
