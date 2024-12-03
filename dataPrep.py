@@ -50,8 +50,8 @@ def fetch_data():
     vocab['$'] = 0
 
     emotions = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
-    for i, tweet in enumerate(trainTokens):
-        print(f'{emotions[trainTargets[i]]}: {tweet}')
+    # for i, tweet in enumerate(trainTokens):
+    #     print(f'{emotions[trainTargets[i]]}: {tweet}')
 
     seqLength = int(math.floor(mean + std))
     vocabSize = len(vocab)
@@ -70,4 +70,4 @@ def fetch_data():
     test_dataset = TensorDataset(torch.tensor(testEncoded), torch.tensor(testTargets))
     val_dataset = TensorDataset(torch.tensor(valEncoded), torch.tensor(valTargets))
 
-    return (train_dataset, test_dataset, val_dataset, seqLength, vocabSize)
+    return (train_dataset, test_dataset, val_dataset, seqLength, vocabSize, vocab)
