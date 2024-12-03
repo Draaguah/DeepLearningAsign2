@@ -8,14 +8,16 @@ import os as os
 import time
 import sys
 from dataPrep import fetch_data
+import pickle
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
-device = torch.device("cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+device = torch.device('cpu')
 
 batch_size = 64
 
-train_dataset, test_dataset, val_dataset, seqLength, vocabSize, vocab = fetch_data()
+train_dataset, test_dataset, val_dataset, seqLength, vocabSize = fetch_data()
+
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
@@ -44,7 +46,6 @@ def train():
     model = RNNModel()
     model = model.to(device)
     print(model)
-
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -133,4 +134,4 @@ def train():
 
     # plt.show(block=True)
 
-    torch.save(modelPB.state_dict(), './model')
+    torch.save(modelPB.state_dict(), 'DeepLearningAsign2/model')

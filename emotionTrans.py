@@ -26,7 +26,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Train network
-num_epochs = 100
+num_epochs = 10
 
 train_losses = []
 val_losses = []
@@ -77,8 +77,8 @@ for epoch in range(num_epochs):
             targets = targets.to(device)
             outputs = model(data)
             _, predicted = torch.max(torch.softmax(outputs.detach(), dim=1), dim=1)
-            print(f'Predicted: {predicted}')
-            print(f'Target:    {targets}')
+            # print(f'Predicted: {predicted}')
+            # print(f'Target:    {targets}')
             # print(f'Outputs: {outputs}')
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
@@ -107,4 +107,4 @@ for epoch in range(num_epochs):
 
 plt.show(block=True)
 
-torch.save(modelPB.state_dict(), f"DeepLearningAsign2/Outputs/model_{accPB}%_{time.strftime('%Y%m%d-%H%M%S')}")
+torch.save(modelPB.state_dict(), f"DeepLearningAsign2/modelTrans")

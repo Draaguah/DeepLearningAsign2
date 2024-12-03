@@ -6,21 +6,22 @@ import sys
 import nltk
 from nltk.corpus import stopwords
 from datasets import load_dataset
+import pickle
 
-train_dataset, test_dataset, val_dataset, seqLength, vocabSize, vocab = fetch_data()
+train_dataset, test_dataset, val_dataset, seqLength, vocabSize = fetch_data()
 nltk.download('stopwords')
 ds = load_dataset("dair-ai/emotion", "split")
+
+vocab = {}
+with open('vocabulary.pkl', 'rb') as f:
+    vocab = pickle.load(f)
 
 excludedWords = stopwords.words('english')
 emotions = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
 
-train()
-
 model = RNNModel()
-model.load_state_dict(torch.load('./model', map_location=torch.device('cpu')))
+model.load_state_dict(torch.load('DeepLearningAsign2/model', map_location=torch.device('cpu')))
 model.eval()
-
-
 
 for line in sys.stdin:
     if 'q' == line.rstrip():

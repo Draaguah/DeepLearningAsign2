@@ -7,11 +7,41 @@ from torch.utils.data import DataLoader, TensorDataset
 import os as os
 import math
 import numpy as np
+import pickle
+
+def vocab_gen():
+    nltk.download('stopwords')
+    ds = load_dataset("dair-ai/emotion", "split")
+    excludedWords = stopwords.words('english')
+    trainTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['train']['text']]
+    lengths = [len(tweet) for tweet in trainTokens]
+    mean = np.mean(lengths)
+    std = np.std(lengths)
+
+    print(f'Mean: {mean}')
+    print(f'Std: {std}')
+
+    words = set(sum(trainTokens, []))
+    vocab = {word: i+1 for i, word in enumerate(words)}
+    vocab['$'] = 0
+
+    with open('vocabulary.pkl', 'wb') as f:
+        pickle.dump(vocab, f)
+
+    return vocab
 
 
 def fetch_data():
     nltk.download('stopwords')
     ds = load_dataset("dair-ai/emotion", "split")
+
+    if not os.path.isfile('vocabulary.pkl'):
+        print("Generating new vocabulary")
+        vocab_gen()
+
+    vocab = {}
+    with open('vocabulary.pkl', 'rb') as f:
+        vocab = pickle.load(f)
     # print("Train set:")
     # for i in range(6):
     #     count = ds['train']['label'].count(i)
@@ -38,20 +68,13 @@ def fetch_data():
     valTokens = [[word for word in tweet.split() if word not in excludedWords] for tweet in ds['validation']['text']]
     valTargets = ds['validation']['label']
 
-    lengths = [len(tweet) for tweet in trainTokens]
-    mean = np.mean(lengths)
-    std = np.std(lengths)
-
-    print(f'Mean: {mean}')
-    print(f'Std: {std}')
-
-    words = set(sum(trainTokens, []))
-    vocab = {word: i+1 for i, word in enumerate(words)}
-    vocab['$'] = 0
-
     emotions = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
     # for i, tweet in enumerate(trainTokens):
     #     print(f'{emotions[trainTargets[i]]}: {tweet}')
+
+    lengths = [len(tweet) for tweet in trainTokens]
+    mean = np.mean(lengths)
+    std = np.std(lengths)
 
     seqLength = int(math.floor(mean + std))
     vocabSize = len(vocab)
@@ -70,4 +93,4 @@ def fetch_data():
     test_dataset = TensorDataset(torch.tensor(testEncoded), torch.tensor(testTargets))
     val_dataset = TensorDataset(torch.tensor(valEncoded), torch.tensor(valTargets))
 
-    return (train_dataset, test_dataset, val_dataset, seqLength, vocabSize, vocab)
+    return (train_dataset, test_dataset, val_dataset, seqLength, vocabSize)
